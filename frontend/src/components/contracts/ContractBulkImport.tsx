@@ -496,6 +496,76 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
     return false;
   };
 
+  const checkArgbIsYellow = (argbRaw: any): boolean => {
+    if (!argbRaw) return false;
+    const str = String(argbRaw).toUpperCase().trim();
+    if (!str) return false;
+
+    // Direct matches for common Excel / Google Sheets yellow hexes
+    const knownYellowHexes = [
+      'FFFF00', // Standard Yellow
+      'FFF2CC', // Soft Yellow / Accent 4 - 80% lighter
+      'FFE699', // Accent 4 - 60% lighter
+      'FFD966', // Accent 4 - 40% lighter
+      'FFC000', // Standard Gold / Deep Yellow
+      'FFEB9C', // Conditional Formatting Light Yellow
+      'FFFFCC', // Pale Yellow
+      'FFFFA0', // Light Yellow
+      'FFFF99', // Canary Yellow
+      'FFD700', // Gold
+      'FFF59D', // Material yellow 200
+      'FFEE58', // Material yellow 400
+      'FBC02D', // Material yellow 700
+      'FFF9C4', // Material yellow 100
+      'FEF08A', // Tailwind yellow-200
+      'FDE047', // Tailwind yellow-300
+      'FACC15'  // Tailwind yellow-400
+    ];
+    if (knownYellowHexes.some(k => str.includes(k))) {
+      return true;
+    }
+
+    // Hex RGB dominant-yellow analysis (high Red & Green, low Blue)
+    const clean = str.replace(/^#/, '');
+    const hex = clean.length === 8 ? clean.slice(2) : clean;
+    if (hex.length === 6) {
+      const r = parseInt(hex.slice(0, 2), 16);
+      const g = parseInt(hex.slice(2, 4), 16);
+      const b = parseInt(hex.slice(4, 6), 16);
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        // Yellow: both Red and Green are high, and significantly higher than Blue
+        if (r >= 180 && g >= 160 && (r - b >= 40 && g - b >= 40)) return true;
+        // Soft pastel yellows (high overall, but R and G dominate B)
+        if (r >= 220 && g >= 200 && (r - b >= 25 && g - b >= 25)) return true;
+      }
+    }
+    return false;
+  };
+
+  const isCellGreenOrYellow = (cell: any): boolean => {
+    if (!cell) return false;
+
+    // Check cell fill (fgColor, bgColor, styles)
+    const fills = [cell.fill, cell.style?.fill].filter(Boolean);
+    for (const fill of fills) {
+      const fg = fill.fgColor;
+      const bg = fill.bgColor;
+      if (fg?.argb && (checkArgbIsGreen(fg.argb) || checkArgbIsYellow(fg.argb))) return true;
+      if (bg?.argb && (checkArgbIsGreen(bg.argb) || checkArgbIsYellow(bg.argb))) return true;
+      // Excel theme 9 is Accent 6 (Green), theme 7/8 is Accent 4 (Yellow/Gold)
+      if (fg?.theme === 9 || bg?.theme === 9 || fg?.theme === 7 || bg?.theme === 7 || fg?.theme === 8 || bg?.theme === 8) return true;
+    }
+
+    // Check cell font color (e.g. conditional formatting colored text)
+    const fonts = [cell.font, cell.style?.font].filter(Boolean);
+    for (const font of fonts) {
+      if (font?.color?.argb && (checkArgbIsGreen(font.color.argb) || checkArgbIsYellow(font.color.argb))) return true;
+      if (font?.color?.theme === 9 || font?.color?.theme === 7 || font?.color?.theme === 8) return true;
+    }
+
+    return false;
+  };
+
   const isCellGreen = (cell: any): boolean => {
     if (!cell) return false;
 
@@ -957,8 +1027,8 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
             const dateCell = dCol !== -1 ? row.getCell(dCol) : null;
             const parsedPmAmount = pmValCol !== -1 ? parseOptionalCurrency(getCellCleanValue(row.getCell(pmValCol))) : null;
 
-            // Check if either range or date cell has green fill
-            const isGreen = (rangeCell ? isCellGreen(rangeCell) : false) || (dateCell ? isCellGreen(dateCell) : false);
+            // Check if either range or date cell has green or yellow highlight
+            const isHighlightedDone = (rangeCell ? isCellGreenOrYellow(rangeCell) : false) || (dateCell ? isCellGreenOrYellow(dateCell) : false);
 
             const rawRangeVal = rangeCell ? getCellCleanValue(rangeCell) : '';
             let pRange = '';
@@ -990,8 +1060,8 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
             const completionDate = parseCompletionDate(dateValStr || rawDateVal, startYear);
             const textIndicatesDone = isCompletedText(dateValStr) || (isCompletedText(cleanRange) && !cleanRange.includes(' to ') && !cleanRange.includes(' TO '));
 
-            // BUSINESS RULE: IF GREEN COLOR OR COMPLETION DATE FOUND OR "DONE" TEXT -> COMPLETED
-            const isCompleted = isGreen || Boolean(completionDate) || textIndicatesDone;
+            // BUSINESS RULE: IF GREEN/YELLOW COLOR OR COMPLETION DATE FOUND OR "DONE" TEXT -> COMPLETED
+            const isCompleted = isHighlightedDone || Boolean(completionDate) || textIndicatesDone;
             const finalCompletedAt = completionDate || (isCompleted ? (startDateParsed || formatDateISO(new Date())) : null);
 
             // Preserve full sentence/text from pRange and dateValStr (including text + date and notes)
