@@ -872,7 +872,7 @@ export const bulkImportContracts = async (req: any, res: Response) => {
             pmNumber: Number(pm.pmNumber || pm.pmNum),
             range: cleanRange,
             status: isCompleted ? 'Completed' : 'Pending',
-            completedAt: pmDate || (isCompleted ? start : null),
+            completedAt: pmDate || null,
             amount: parseOptionalDecimal(pm.amount)
           });
         });

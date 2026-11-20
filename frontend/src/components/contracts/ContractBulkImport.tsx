@@ -1062,7 +1062,8 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
 
             // BUSINESS RULE: IF GREEN/YELLOW COLOR OR COMPLETION DATE FOUND OR "DONE" TEXT -> COMPLETED
             const isCompleted = isHighlightedDone || Boolean(completionDate) || textIndicatesDone;
-            const finalCompletedAt = completionDate || (isCompleted ? (startDateParsed || formatDateISO(new Date())) : null);
+            // If no completion date exists in Excel, keep it null (empty) — do not fabricate dates
+            const finalCompletedAt = completionDate || null;
 
             // Preserve full sentence/text from pRange and dateValStr (including text + date and notes)
             let finalRange = '';
@@ -1070,13 +1071,13 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
             if (cleanRange && cleanDateVal) {
               if (/^(?:Done:|done:)/i.test(cleanDateVal)) {
                 finalRange = `${cleanRange} | ${cleanDateVal}`;
-              } else if (isCompleted) {
+              } else if (completionDate || textIndicatesDone) {
                 finalRange = `${cleanRange} | Done: ${cleanDateVal}`;
               } else {
                 finalRange = `${cleanRange} | ${cleanDateVal}`;
               }
             } else if (cleanRange) {
-              if (isCompleted && !/^(?:Done:|done:)/i.test(cleanRange) && isCompletedText(cleanRange)) {
+              if (completionDate || (textIndicatesDone && !/^(?:Done:|done:)/i.test(cleanRange))) {
                 finalRange = `Done: ${cleanRange}`;
               } else {
                 finalRange = cleanRange;
@@ -1084,13 +1085,13 @@ export default function ContractBulkImport({ role }: ContractBulkImportProps) {
             } else if (cleanDateVal) {
               if (/^(?:Done:|done:)/i.test(cleanDateVal)) {
                 finalRange = cleanDateVal;
-              } else if (isCompleted) {
+              } else if (completionDate || textIndicatesDone) {
                 finalRange = `Done: ${cleanDateVal}`;
               } else {
                 finalRange = cleanDateVal;
               }
             } else if (isCompleted) {
-              finalRange = 'Completed';
+              finalRange = '';
             }
 
             // Push PM schedule if any text/range exists OR if cell is completed/green
