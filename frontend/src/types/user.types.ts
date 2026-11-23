@@ -17,7 +17,7 @@ export enum FinanceRole {
 }
 
 // Module types
-export type ModuleType = 'fsm' | 'finance';
+export type ModuleType = 'fsm' | 'finance' | 'expenses';
 
 export interface ServiceZone {
   serviceZoneId: number;
@@ -72,6 +72,10 @@ export function hasModuleAccess(user: User | null, module: ModuleType): boolean 
 
   if (module === 'finance') {
     return !!user.financeRole;
+  }
+
+  if (module === 'expenses') {
+    return user.role === 'ADMIN' || user.role === 'ZONE_MANAGER' || user.role === 'ZONE_USER' || user.role === 'SERVICE_PERSON';
   }
 
   return false;

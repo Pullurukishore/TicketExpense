@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { Wrench, Banknote, ChevronRight, Sparkles } from 'lucide-react';
+import { Wrench, Banknote, ChevronRight, Sparkles, Receipt } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { hasModuleAccess, ModuleType } from '@/types/user.types';
 
@@ -32,6 +32,14 @@ const allModules: ModuleCard[] = [
     description: 'Invoices, payments & financial reports',
     icon: <Banknote className="w-6 h-6" />,
     color: '#CE9F6B',
+  },
+  {
+    id: 'expenses',
+    title: 'Expenses',
+    subtitle: 'Raydoo Claims & Advances',
+    description: 'Travel claims, daily allowances, approvals & POSO reports',
+    icon: <Receipt className="w-6 h-6" />,
+    color: '#6366F1',
   }
 ];
 
@@ -83,6 +91,7 @@ export default function ModuleSelectPage() {
     setTimeout(() => {
       if (moduleId === 'fsm') router.push('/fsm/select');
       else if (moduleId === 'finance') router.push('/finance/select');
+      else if (moduleId === 'expenses') router.push('/expenses');
     }, delay);
   };
 

@@ -25,6 +25,9 @@ yarn-error.log*
 # Database
 /backend/prisma/dev.db
 /backend/prisma/dev.db-journal
+pgdata/
+/pgdata/
+start-postgres.bat
 
 # Logs
 logs

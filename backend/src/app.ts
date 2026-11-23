@@ -46,6 +46,10 @@ import forecastRoutes from './routes/forecast.routes';
 import contractRoutes from './routes/contract.routes';
 import contractReportsRoutes from './routes/contractReports.routes';
 import detailedContractRoutes from './routes/detailedContract.routes';
+import expenseRoutes from './routes/expense.routes';
+import advanceRoutes from './routes/advance.routes';
+import expenseApprovalRoutes from './routes/expense-approval.routes';
+import expenseReportRoutes from './routes/expense-report.routes';
 
 const app = express();
 const server = http.createServer(app);
@@ -228,6 +232,12 @@ app.use('/api/detailed-contracts', detailedContractRoutes);
 // AR (Accounts Receivable) Routes - Finance Module
 import arRoutes from './routes/ar';
 app.use('/api/ar', arRoutes);
+
+// Expense & Advance Management Routes (Raydoo Module)
+app.use('/api/expenses', expenseRoutes);
+app.use('/api/advances', advanceRoutes);
+app.use('/api/expense-approvals', expenseApprovalRoutes);
+app.use('/api/expense-reports', expenseReportRoutes);
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {

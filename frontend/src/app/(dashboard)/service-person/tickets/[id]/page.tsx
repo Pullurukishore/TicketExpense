@@ -20,7 +20,8 @@ import {
   Building,
   Phone,
   Mail,
-  Calendar
+  Calendar,
+  Receipt
 } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 import { Ticket } from '@/types/ticket';
@@ -211,6 +212,12 @@ export default function ServicePersonTicketDetailPage() {
         <div className="flex items-center gap-3">
           <StatusBadge status={ticket.status} />
           <PriorityBadge priority={ticket.priority} />
+          <Link href={`/expenses/new?ticketId=${ticket.id}`}>
+            <Button variant="outline" className="border-indigo-500/40 text-indigo-400 hover:bg-indigo-500/10">
+              <Receipt className="h-4 w-4 mr-2" />
+              Claim Expense
+            </Button>
+          </Link>
           <Button onClick={() => setIsStatusDialogOpen(true)}>
             <Wrench className="h-4 w-4 mr-2" />
             Update Status

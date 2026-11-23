@@ -35,6 +35,7 @@ model User {
   name                           String?
   phone                          String?
   shortForm                      String?                  @db.VarChar(5) // User short form for offer IDs
+  employeeCode                   String?                  @unique @map("employee_code")
   zoneId                         String?
   createdAt                      DateTime                 @default(now())
   updatedAt                      DateTime                 @updatedAt
@@ -105,6 +106,12 @@ model User {
   // Detailed Contracts Relations
   detailedContractsCreated        DetailedContract[]       @relation("DetailedContractCreatedBy")
 
+  // Expense Module Relations
+  submittedClaims                 ExpenseClaim[]           @relation("SubmittedClaims")
+  requestedAdvances               Advance[]                @relation("RequestedAdvances")
+  expenseApprovals                ExpenseApproval[]        @relation("ExpenseApproverActions")
+  expenseUploadedImports          ExpenseImportBatch[]     @relation("ExpenseUploadedImports")
+
   @@index([role])
   @@index([isActive])
   @@index([role, isActive])
@@ -136,6 +143,7 @@ model Customer {
   contracts     Contract[]  @relation("CustomerContracts")
   activitySchedules ActivitySchedule[] @relation("CustomerActivitySchedules")
   detailedContracts DetailedContract[] @relation("CustomerDetailedContracts")
+  expenseClaims     ExpenseClaim[]     @relation("CustomerExpenses")
 }
 
 model Contact {
@@ -199,6 +207,7 @@ model Asset {
   customer       Customer         @relation("CustomerAssets", fields: [customerId], references: [id])
   tickets        Ticket[]         @relation("AssetTickets")
   offerAssets    OfferAsset[]     @relation("AssetToOffers")
+  expenseClaims  ExpenseClaim[]   @relation("AssetExpenses")
 
   @@index([customerId])
   @@index([status])
@@ -278,6 +287,8 @@ model Ticket {
   reports                 TicketReport[]        @relation("TicketReports")
   statusHistory           TicketStatusHistory[] @relation("TicketStatusHistory")
   scheduledActivities     ActivitySchedule[]    @relation("ScheduledTickets")
+  expenseClaims           ExpenseClaim[]        @relation("TicketExpenses")
+  advances                Advance[]             @relation("TicketAdvances")
 
   @@index([status, assignedToId])
   @@index([customerId, status])
@@ -908,6 +919,9 @@ enum NotificationType {
   SYSTEM_ALERT
   MAINTENANCE
   OTHER
+  EXPENSE_CLAIM
+  EXPENSE_ADVANCE
+  EXPENSE_APPROVAL
 }
 
 enum NotificationStatus {
@@ -1677,4 +1691,166 @@ model DetailedContract {
   @@index([warrantyEndDate])
   @@index([customerClass])
   @@map("detailed_contracts")
+}
+
+// ==========================================
+// EXPENSE & ADVANCE MANAGEMENT (RAYDOO MODULE)
+// ==========================================
+
+enum ExpenseClaimStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+}
+
+enum ExpenseCategory {
+  DA
+  TRAVELLING
+  ROOMS
+  OTHERS
+}
+
+enum AdvanceStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  REJECTED
+  PAID
+  SETTLED
+}
+
+enum ApprovalAction {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model ExpenseClaim {
+  id              Int                @id @default(autoincrement())
+  claimNumber     String             @unique @map("claim_number")
+  submittedBy     Int                @map("submitted_by")
+  claimDate       DateTime           @map("claim_date")
+  totalAmount     Float              @default(0) @map("total_amount")
+  status          ExpenseClaimStatus @default(DRAFT)
+  source          String             @default("MANUAL") // MANUAL | EXCEL_IMPORT
+  importBatchId   Int?               @map("import_batch_id")
+  
+  // Direct relational links to TicketExpense core entities:
+  ticketId        Int?               @map("ticket_id")
+  customerId      Int?               @map("customer_id")
+  assetId         Int?               @map("asset_id")
+  
+  // Text fallbacks (for Excel imports and historical records):
+  ticketNo        String?            @map("ticket_no")
+  customer        String?
+  machineNo       String?            @map("machine_no")
+  location        String?
+  purpose         String?
+  poSoNo          String?            @map("po_so_no")
+  zone            String?
+  receipts        String?            // Comma-separated paths / URLs
+  submittedAt     DateTime?          @map("submitted_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  // Relations
+  submitter       User               @relation("SubmittedClaims", fields: [submittedBy], references: [id])
+  ticket          Ticket?            @relation("TicketExpenses", fields: [ticketId], references: [id], onDelete: SetNull)
+  customerRel     Customer?          @relation("CustomerExpenses", fields: [customerId], references: [id], onDelete: SetNull)
+  assetRel        Asset?             @relation("AssetExpenses", fields: [assetId], references: [id], onDelete: SetNull)
+  importBatch     ExpenseImportBatch? @relation(fields: [importBatchId], references: [id], onDelete: SetNull)
+  items           ExpenseItem[]
+  approvals       ExpenseApproval[]
+  settledAdvances Advance[]          @relation("SettledAgainstClaim")
+
+  @@index([submittedBy, status])
+  @@index([ticketId])
+  @@index([poSoNo])
+  @@map("expense_claims")
+}
+
+model ExpenseItem {
+  id               Int             @id @default(autoincrement())
+  claimId          Int             @map("claim_id")
+  category         ExpenseCategory
+  amount           Float
+  expenseDate      DateTime        @map("expense_date")
+  description      String?
+  receiptUrl       String?         @map("receipt_url")
+  externalRef      String?         @unique @map("external_ref")
+  externalCategory String?         @map("external_category")
+  createdAt        DateTime        @default(now()) @map("created_at")
+
+  claim            ExpenseClaim    @relation(fields: [claimId], references: [id], onDelete: Cascade)
+
+  @@index([claimId])
+  @@map("expense_items")
+}
+
+model Advance {
+  id             Int           @id @default(autoincrement())
+  advanceNumber  String        @unique @map("advance_number")
+  requestedBy    Int           @map("requested_by")
+  amount         Float
+  purpose        String
+  ticketId       Int?          @map("ticket_id")
+  customerId     Int?          @map("customer_id")
+  ticketNo       String?       @map("ticket_no")
+  customer       String?
+  location       String?
+  poSoNo         String?       @map("po_so_no")
+  zone           String?
+  notes          String?
+  status         AdvanceStatus @default(DRAFT)
+  requestedDate  DateTime      @map("requested_date")
+  submittedAt    DateTime?     @map("submitted_at")
+  paidAt         DateTime?     @map("paid_at")
+  settledClaimId Int?          @map("settled_claim_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  requester      User              @relation("RequestedAdvances", fields: [requestedBy], references: [id])
+  ticket         Ticket?           @relation("TicketAdvances", fields: [ticketId], references: [id], onDelete: SetNull)
+  settledClaim   ExpenseClaim?     @relation("SettledAgainstClaim", fields: [settledClaimId], references: [id])
+  approvals      ExpenseApproval[]
+
+  @@index([requestedBy, status])
+  @@map("advances")
+}
+
+model ExpenseApproval {
+  id         Int            @id @default(autoincrement())
+  claimId    Int?           @map("claim_id")
+  advanceId  Int?           @map("advance_id")
+  approverId Int            @map("approver_id")
+  action     ApprovalAction @default(PENDING)
+  comments   String?
+  actionDate DateTime?      @map("action_date")
+  createdAt  DateTime       @default(now()) @map("created_at")
+
+  claim      ExpenseClaim?  @relation(fields: [claimId], references: [id], onDelete: Cascade)
+  advance    Advance?       @relation(fields: [advanceId], references: [id], onDelete: Cascade)
+  approver   User           @relation("ExpenseApproverActions", fields: [approverId], references: [id])
+
+  @@index([approverId, action])
+  @@map("expense_approvals")
+}
+
+model ExpenseImportBatch {
+  id            Int            @id @default(autoincrement())
+  uploadedBy    Int            @map("uploaded_by")
+  fileName      String         @map("file_name")
+  totalRows     Int            @default(0) @map("total_rows")
+  importedCount Int            @default(0) @map("imported_count")
+  skippedCount  Int            @default(0) @map("skipped_count")
+  claimsCreated Int            @default(0) @map("claims_created")
+  totalAmount   Float          @default(0) @map("total_amount")
+  createdAt     DateTime       @default(now()) @map("created_at")
+
+  uploader      User           @relation("ExpenseUploadedImports", fields: [uploadedBy], references: [id])
+  claims        ExpenseClaim[]
+
+  @@map("expense_import_batches")
 }
