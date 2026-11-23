@@ -16,6 +16,7 @@ import {
     kardexSand,
 } from './kardex-colors';
 import { normalizeEngineerNames } from './utils';
+import { computeContractPivots, addPivotSheetsToWorkbook } from './contract-pivot';
 
 // ============ Types ============
 interface ExpiryInfo {
@@ -421,6 +422,21 @@ export async function generateAnnualContractReportExcel(
             cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLORS.kardexBlueDark } };
             cell.border = thinBorder(COLORS.kardexBlueDark);
         }
+    }
+
+    // ============ Add Official Pivot Sheets (Matching Excel Pivot Tab) ============
+    try {
+        const allMachines = customers.flatMap(c => c.machines || []);
+        if (allMachines.length > 0) {
+            const pivotData = computeContractPivots(allMachines);
+            addPivotSheetsToWorkbook(
+                workbook,
+                pivotData,
+                `Annual Contract Summary (${allMachines.length} Machines, ₹${(pivotData.totals.totalValue / 10000000).toFixed(2)} Cr)`
+            );
+        }
+    } catch (pivotErr) {
+        console.error('Failed to append pivot sheets to Excel workbook:', pivotErr);
     }
 
     // Generate & download Excel file

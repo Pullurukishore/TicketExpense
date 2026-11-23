@@ -157,7 +157,7 @@ const parseNumeric = (val: any): number | null => {
 export const listDetailedContracts = async (req: Request, res: Response) => {
   try {
     const {
-      search, zone, customerClass, contractType, expiryBucket,
+      search, zone, customerClass, contractType, installationYear, expiryBucket,
       page = '1', limit = '50', sortBy = 'customerName', sortOrder = 'asc'
     } = req.query;
 
@@ -187,6 +187,9 @@ export const listDetailedContracts = async (req: Request, res: Response) => {
     }
     if (contractType && contractType !== 'all') {
       where.contractType = { equals: contractType as string, mode: 'insensitive' };
+    }
+    if (installationYear && installationYear !== 'all') {
+      where.installationYear = { contains: installationYear as string, mode: 'insensitive' };
     }
 
     // Expiry bucket filter requires post-query filtering
@@ -241,7 +244,7 @@ export const listDetailedContracts = async (req: Request, res: Response) => {
 // ============================
 export const getDetailedContractStats = async (req: Request, res: Response) => {
   try {
-    const { zone, customerClass, contractType, unitType, engineer, department, dateFrom, dateTo, search } = req.query;
+    const { zone, customerClass, contractType, unitType, engineer, department, installationYear, dateFrom, dateTo, search } = req.query;
     const where: any = {};
     if (zone && zone !== 'all') where.zoneName = { equals: zone as string, mode: 'insensitive' };
     if (customerClass && customerClass !== 'all') where.customerClass = customerClass as string;
@@ -273,11 +276,20 @@ export const getDetailedContractStats = async (req: Request, res: Response) => {
       }
     }
     if (department && department !== 'all') where.department = { equals: department as string, mode: 'insensitive' };
+    if (installationYear && installationYear !== 'all') where.installationYear = { contains: installationYear as string, mode: 'insensitive' };
 
     if (dateFrom || dateTo) {
       where.mcEndDate = {};
-      if (dateFrom) where.mcEndDate.gte = new Date(dateFrom as string);
-      if (dateTo) where.mcEndDate.lte = new Date(dateTo as string);
+      if (dateFrom) {
+        const fromD = new Date(dateFrom as string);
+        fromD.setHours(0, 0, 0, 0);
+        where.mcEndDate.gte = fromD;
+      }
+      if (dateTo) {
+        const toD = new Date(dateTo as string);
+        toD.setHours(23, 59, 59, 999);
+        where.mcEndDate.lte = toD;
+      }
     }
 
     if (search) {
@@ -349,7 +361,7 @@ export const getDetailedContractStats = async (req: Request, res: Response) => {
 // ============================
 export const getCustomerGroupedContracts = async (req: Request, res: Response) => {
   try {
-    const { search, zone, customerClass, contractType, unitType, engineer, department, dateFrom, dateTo, expiryBucket } = req.query;
+    const { search, zone, customerClass, contractType, unitType, engineer, department, installationYear, dateFrom, dateTo, expiryBucket } = req.query;
     const where: any = {};
 
     if (search) {
@@ -392,6 +404,7 @@ export const getCustomerGroupedContracts = async (req: Request, res: Response) =
       }
     }
     if (department && department !== 'all') where.department = { equals: department as string, mode: 'insensitive' };
+    if (installationYear && installationYear !== 'all') where.installationYear = { contains: installationYear as string, mode: 'insensitive' };
 
     if (dateFrom || dateTo) {
       where.mcEndDate = {};

@@ -843,7 +843,7 @@ export const exportContractReport = async (req: any, res: Response) => {
           'S.No', 'Contract #', 'Scheduled Month', 'Customer Name', 'Department / Plant Site', 'Place',
           'Zone', 'PO No', 'PO Date', 'MC Type', 'No of Machines', 'Amount (₹)',
           'No of Visits', 'Start Date', 'End Date', 'Status', 'Days Remaining',
-          'SW Support', 'Responsible', 'BD Count', 'Payment Terms'
+          'Responsible'
         ];
 
         // Add PM column headers dynamically (5 columns per PM: Start Date, End Date, Range, Status, Done Date)
@@ -1007,10 +1007,7 @@ export const exportContractReport = async (req: any, res: Response) => {
               fmtDate(c.endDate),
               c.status || '—',
               daysLeft,
-              c.softwareSupport ? 'Yes' : 'No',
-              c.responsible || '—',
-              c.bdCount ?? 0,
-              c.paymentTerms || '—'
+              c.responsible || '—'
             ];
 
             // Add PM visits
@@ -1061,7 +1058,7 @@ export const exportContractReport = async (req: any, res: Response) => {
                 } else if (val === 'Active') {
                   cell.font = { size: 9, bold: true, color: { argb: 'FF059669' } };
                 }
-              } else if (colIdx === 0 || colIdx === 10 || colIdx === 12 || colIdx === 19) { // Numeric columns: S.No, Machines, Visits, BD Count
+              } else if (colIdx === 0 || colIdx === 10 || colIdx === 12) { // Numeric columns: S.No, Machines, Visits
                 cell.alignment = { horizontal: 'center', vertical: 'middle' };
               } else {
                 cell.alignment = { horizontal: 'left', vertical: 'middle' };
@@ -1112,9 +1109,6 @@ export const exportContractReport = async (req: any, res: Response) => {
             } else if (colIdx === 12) { // No of Visits (Col M)
               cell.value = { formula: `SUM(M${startDataRow}:M${totalRowIndex - 1})` };
               cell.alignment = { horizontal: 'center', vertical: 'middle' };
-            } else if (colIdx === 19) { // BD Count (Col T)
-              cell.value = { formula: `SUM(T${startDataRow}:T${totalRowIndex - 1})` };
-              cell.alignment = { horizontal: 'center', vertical: 'middle' };
             } else {
               cell.value = '—';
               cell.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -1144,10 +1138,7 @@ export const exportContractReport = async (req: any, res: Response) => {
         sheet.getColumn(15).width = 14; // End Date
         sheet.getColumn(16).width = 14; // Status
         sheet.getColumn(17).width = 16; // Days Remaining
-        sheet.getColumn(18).width = 12; // SW Support
-        sheet.getColumn(19).width = 18; // Responsible
-        sheet.getColumn(20).width = 12; // BD Count
-        sheet.getColumn(21).width = 18; // Payment Terms
+        sheet.getColumn(18).width = 18; // Responsible
       } else {
         const sheet = workbook.addWorksheet('Contract Report');
         const HEADER_BG = '546A7A';
@@ -1344,10 +1335,8 @@ function getExportColumns(reportType: string) {
         { key: 'totalMachines', header: 'Machines' },
         { key: 'pmPercentage', header: 'PM Done %' },
         { key: 'pmOverdue', header: 'PM Overdue' },
-        { key: 'hasSoftwareSupport', header: 'SW Support', format: (v: any) => v ? 'Yes' : 'No' },
         { key: 'mcTypes', header: 'MC Types', format: (v: any, item: any) => item.contracts ? Array.from(new Set(item.contracts.map((c: any) => c.mcType).filter(Boolean))).join(', ') : '—' },
         { key: 'responsible', header: 'Responsible', format: (v: any, item: any) => item.contracts ? Array.from(new Set(item.contracts.map((c: any) => c.responsible).filter(Boolean))).join(', ') : '—' },
-        { key: 'bdCount', header: 'BD Count', format: (v: any, item: any) => item.contracts ? item.contracts.reduce((s: number, c: any) => s + (c.bdCount || 0), 0) : 0 },
         { key: 'noOfVisits', header: 'Total Visits', format: (v: any, item: any) => item.contracts ? item.contracts.reduce((s: number, c: any) => s + (c.noOfVisits || 0), 0) : 0 }
       ];
     default:

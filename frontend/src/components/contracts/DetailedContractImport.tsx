@@ -294,12 +294,36 @@ export default function DetailedContractImport({ role }: DetailedContractImportP
         return;
       }
 
-      const headerRow0 = (rawData[0] || []).map((c: any) => String(c || '').trim());
-      const headerRow1 = (rawData[1] || []).map((c: any) => String(c || '').trim());
+      // Dynamically detect header row (first 25 rows)
+      let headerRowIndex = 0;
+      for (let r = 0; r < Math.min(25, rawData.length); r++) {
+        const row = rawData[r] || [];
+        let matchedCount = 0;
+        row.forEach((cell: any) => {
+          const s = String(cell || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+          if (
+            /customer/i.test(s) ||
+            /serial/i.test(s) ||
+            /mctype|typeofunit/i.test(s) ||
+            /mcperiod/i.test(s) ||
+            /installation/i.test(s) ||
+            /kdxengineer|engineer/i.test(s) ||
+            /model/i.test(s)
+          ) {
+            matchedCount++;
+          }
+        });
+        if (matchedCount >= 2) {
+          headerRowIndex = r;
+          break;
+        }
+      }
 
-      const isRow1SubHeader = headerRow1.some((c: string) => /^(starts?|ends?)$/i.test(c));
-      const dataStartRow = isRow1SubHeader ? 2 : 1;
-      const colMap = buildColumnMap(headerRow0);
+      const headerRow = (rawData[headerRowIndex] || []).map((c: any) => String(c || '').trim());
+      const nextRow = (rawData[headerRowIndex + 1] || []).map((c: any) => String(c || '').trim());
+      const isNextRowSubHeader = nextRow.some((c: string) => /^(starts?|ends?)$/i.test(c));
+      const dataStartRow = isNextRowSubHeader ? headerRowIndex + 2 : headerRowIndex + 1;
+      const colMap = buildColumnMap(headerRow);
 
       const parsed: ParsedRow[] = [];
 
@@ -309,15 +333,20 @@ export default function DetailedContractImport({ role }: DetailedContractImportP
           continue;
         }
 
-        const errors: string[] = [];
-        const warnings: string[] = [];
-
         const customerName = colMap.customerName !== undefined && row[colMap.customerName] !== undefined
           ? String(row[colMap.customerName]).trim()
           : '';
         const serialNumber = colMap.serialNumber !== undefined && row[colMap.serialNumber] !== undefined
           ? String(row[colMap.serialNumber]).trim()
           : '';
+
+        // Skip blank or trailing spacer rows where both customer and serial are empty
+        if (!customerName && !serialNumber) {
+          continue;
+        }
+
+        const errors: string[] = [];
+        const warnings: string[] = [];
 
         if (!customerName) errors.push('Missing customer name');
         if (!serialNumber) errors.push('Missing serial number');
@@ -425,9 +454,12 @@ export default function DetailedContractImport({ role }: DetailedContractImportP
       setSheetNames(targetSheets);
 
       // Smart multi-sheet auto-detection:
-      // 1. Scan each visible sheet in the workbook to detect machine/contract headers
+      // 1. Prioritize active/data sheets over terminated, scrap, or pivot sheets
       let chosenSheet = '';
-      for (const sName of targetSheets) {
+      const candidateSheets = targetSheets.filter((sName: string) => !/terminated|scrap|pivot|summary/i.test(sName));
+      const sheetsToScan = candidateSheets.length > 0 ? candidateSheets : targetSheets;
+
+      for (const sName of sheetsToScan) {
         const ws = workbook.Sheets[sName];
         if (!ws) continue;
         const sampleRows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, defval: '' });
@@ -435,17 +467,13 @@ export default function DetailedContractImport({ role }: DetailedContractImportP
           row && row.some(cell => {
             const str = String(cell || '').trim().toLowerCase();
             return (
-              str === 'customer name' ||
-              str === 'customer' ||
-              str === 'serial number' ||
-              str === 'serial no' ||
-              str === 'serial no.' ||
+              str.includes('customer') ||
+              str.includes('serial') ||
               str === 'sl no' ||
               str === 'sl.no' ||
-              str === 'equipment serial' ||
-              str === 'mc type' ||
-              str === 'model' ||
-              str === 'machine type'
+              str.includes('unit') ||
+              str.includes('model') ||
+              str.includes('mc type')
             );
           })
         );
@@ -458,7 +486,7 @@ export default function DetailedContractImport({ role }: DetailedContractImportP
       // 2. Fallback to name pattern match
       if (!chosenSheet) {
         chosenSheet = workbook.SheetNames.find(
-          (n: string) => /detail|contract.*data|machine|dtls|amc/i.test(n)
+          (n: string) => /data|detail|contract|machine|dtls|amc/i.test(n)
         ) || (workbook.SheetNames.length > 1 ? workbook.SheetNames[workbook.SheetNames.length - 1] : workbook.SheetNames[0]) || '';
       }
 

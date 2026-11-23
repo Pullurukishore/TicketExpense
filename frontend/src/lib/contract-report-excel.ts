@@ -382,9 +382,6 @@ const CONTRACT_TABLE_COLUMNS = [
     { header: 'Responsible Engineer', key: 'responsible', width: 24, align: 'left' as const },
     { header: 'Total PM Visits', key: 'noOfVisits', width: 14, align: 'center' as const },
     { header: 'PM Schedule Window', key: 'pendingWindow', width: 44, align: 'left' as const },
-    { header: 'BD Visits', key: 'bdCount', width: 12, align: 'center' as const },
-    { header: 'SW Support', key: 'softwareSupport', width: 12, align: 'center' as const },
-    { header: 'Payment Terms', key: 'paymentTerms', width: 16, align: 'left' as const },
 ];
 
 // ============ Main Tabular Generator ============
@@ -497,7 +494,6 @@ export async function generateContractReportExcel(
                 ? displayedPMsList.map(formatExcelPM).join('\n')
                 : '—';
 
-            const bdLabel = ct.bdCount === 999 ? 'Unlimited' : (ct.bdCount ?? 0);
             const engNames = normalizeEngineerNames(ct.responsible).join(', ') || '—';
 
             const parseOptionalNum = (v: unknown): number | null => {
@@ -546,9 +542,6 @@ export async function generateContractReportExcel(
                 engNames,
                 totalPMs,
                 pendingWindowStr,
-                bdLabel,
-                ct.softwareSupport ? 'Yes' : 'No',
-                ct.paymentTerms || '—',
             ];
 
             preparedRows.push({

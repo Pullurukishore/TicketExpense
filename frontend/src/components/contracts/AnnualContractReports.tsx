@@ -7,7 +7,7 @@ import {
   RefreshCw, FileText, AlertCircle, CheckCircle,
   Cpu, Layers, ChevronDown, ChevronUp, ArrowUpDown, X,
   BookmarkPlus, Save, Trash2, Zap, User, Shield, ExternalLink,
-  Eye
+  Eye, FileSpreadsheet
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
@@ -16,6 +16,7 @@ import { safeSessionStorage } from '@/lib/browser';
 import { generateAnnualContractReportExcel } from '@/lib/annual-contract-report-excel';
 import { normalizeEngineerNames, formatEngineerDisplayName, getCustomerColorClass, extractDepartmentFromCustomer } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import ContractPivotTable from './ContractPivotTable';
 
 // ============================
 // Types
@@ -308,6 +309,7 @@ interface AnnualReportFilterState {
   unitTypeFilter: string;
   techFilter: string[];
   departmentFilter: string;
+  installationYearFilter: string;
   expiryFilter: string;
   dateFrom: string;
   dateTo: string;
@@ -321,11 +323,7 @@ const parseAnnualTechParam = (val: string | null | undefined): string[] => {
 };
 
 const getDefaultAnnualDates = () => {
-  const from = new Date().toISOString().slice(0, 10);
-  const d = new Date();
-  d.setMonth(d.getMonth() + 1);
-  const to = d.toISOString().slice(0, 10);
-  return { from, to };
+  return { from: '', to: '' };
 };
 
 const getInitialAnnualFilters = (): AnnualReportFilterState => {
@@ -338,6 +336,7 @@ const getInitialAnnualFilters = (): AnnualReportFilterState => {
     unitTypeFilter: 'all',
     techFilter: [],
     departmentFilter: 'all',
+    installationYearFilter: 'all',
     expiryFilter: 'all',
     dateFrom: defaultDates.from,
     dateTo: defaultDates.to,
@@ -353,6 +352,7 @@ const getInitialAnnualFilters = (): AnnualReportFilterState => {
       sp.has('q') || sp.has('search') || sp.has('zone') || sp.has('class') || sp.has('customerClass') ||
       sp.has('contractType') || sp.has('unitType') || sp.has('tech') || sp.has('engineer') ||
       sp.has('dept') || sp.has('department') || sp.has('expiry') ||
+      sp.has('installYear') || sp.has('installationYear') ||
       sp.has('dateFrom') || sp.has('dateTo') || sp.has('sort') || sp.has('dir');
 
     if (hasUrlParams) {
@@ -364,6 +364,7 @@ const getInitialAnnualFilters = (): AnnualReportFilterState => {
         unitTypeFilter: sp.get('unitType') || 'all',
         techFilter: parseAnnualTechParam(sp.get('tech') || sp.get('engineer')),
         departmentFilter: sp.get('dept') || sp.get('department') || 'all',
+        installationYearFilter: sp.get('installYear') || sp.get('installationYear') || 'all',
         expiryFilter: sp.get('expiry') || 'all',
         dateFrom: sp.has('dateFrom') ? (sp.get('dateFrom') || '') : defaultDates.from,
         dateTo: sp.has('dateTo') ? (sp.get('dateTo') || '') : defaultDates.to,
@@ -385,6 +386,7 @@ const getInitialAnnualFilters = (): AnnualReportFilterState => {
           ? parsed.techFilter
           : parseAnnualTechParam(parsed.techFilter),
         departmentFilter: parsed.departmentFilter ?? 'all',
+        installationYearFilter: parsed.installationYearFilter ?? 'all',
         expiryFilter: parsed.expiryFilter ?? 'all',
         dateFrom: parsed.dateFrom ?? defaultDates.from,
         dateTo: parsed.dateTo ?? defaultDates.to,
@@ -414,6 +416,7 @@ const syncAnnualUrlAndStorage = (filters: AnnualReportFilterState) => {
     if (filters.unitTypeFilter && filters.unitTypeFilter !== 'all') sp.set('unitType', filters.unitTypeFilter);
     if (filters.techFilter && filters.techFilter.length > 0) sp.set('tech', filters.techFilter.join(','));
     if (filters.departmentFilter && filters.departmentFilter !== 'all') sp.set('dept', filters.departmentFilter);
+    if (filters.installationYearFilter && filters.installationYearFilter !== 'all') sp.set('installYear', filters.installationYearFilter);
     if (filters.expiryFilter && filters.expiryFilter !== 'all') sp.set('expiry', filters.expiryFilter);
     if (filters.dateFrom && filters.dateFrom !== defaultDates.from) sp.set('dateFrom', filters.dateFrom);
     if (filters.dateTo && filters.dateTo !== defaultDates.to) sp.set('dateTo', filters.dateTo);
@@ -437,6 +440,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
   const [loading, setLoading] = useState(false);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [reportView, setReportView] = useState<'detailed' | 'pivot'>('detailed');
 
   // Filters (initialized from URL or sessionStorage)
   const [search, setSearch] = useState(initialFilters.search);
@@ -449,6 +453,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
   const [techSearch, setTechSearch] = useState('');
   const techDropdownRef = useRef<HTMLDivElement>(null);
   const [departmentFilter, setDepartmentFilter] = useState(initialFilters.departmentFilter);
+  const [installationYearFilter, setInstallationYearFilter] = useState(initialFilters.installationYearFilter || 'all');
   const [expiryFilter, setExpiryFilter] = useState(initialFilters.expiryFilter);
   const [dateFrom, setDateFrom] = useState(initialFilters.dateFrom);
   const [dateTo, setDateTo] = useState(initialFilters.dateTo);
@@ -572,7 +577,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
   };
 
   // Quick Date Range Presets
-  const applyDatePreset = (preset: '1_month' | 'today' | 'this_month' | 'next_month' | 'this_quarter' | 'all') => {
+  const applyDatePreset = (preset: string) => {
     const now = new Date();
     if (preset === '1_month') {
       const todayStr = now.toISOString().slice(0, 10);
@@ -599,6 +604,40 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     } else if (preset === 'all') {
       setDateFrom('');
       setDateTo('');
+    } else if (preset === '2027') {
+      setDateFrom('2027-01-01');
+      setDateTo('2027-12-31');
+    } else if (preset === '2026' || preset === 'this_year') {
+      setDateFrom('2026-01-01');
+      setDateTo('2026-12-31');
+    } else if (preset === '2025') {
+      setDateFrom('2025-01-01');
+      setDateTo('2025-12-31');
+    } else if (preset === '2024') {
+      setDateFrom('2024-01-01');
+      setDateTo('2024-12-31');
+    } else if (preset === '2023') {
+      setDateFrom('2023-01-01');
+      setDateTo('2023-12-31');
+    } else if (preset === '2022') {
+      setDateFrom('2022-01-01');
+      setDateTo('2022-12-31');
+    } else if (preset === 'fy26_27') {
+      setDateFrom('2026-04-01');
+      setDateTo('2027-03-31');
+    } else if (preset === 'fy25_26') {
+      setDateFrom('2025-04-01');
+      setDateTo('2026-03-31');
+    } else if (preset === 'fy24_25') {
+      setDateFrom('2024-04-01');
+      setDateTo('2025-03-31');
+    } else if (preset === 'fy23_24') {
+      setDateFrom('2023-04-01');
+      setDateTo('2024-03-31');
+    } else if (/^\d{4}$/.test(preset)) {
+      const yr = parseInt(preset, 10);
+      setDateFrom(`${yr}-01-01`);
+      setDateTo(`${yr}-12-31`);
     }
   };
 
@@ -610,6 +649,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     setUnitTypeFilter('all');
     setTechFilter([]);
     setDepartmentFilter('all');
+    setInstallationYearFilter('all');
     setExpiryFilter('all');
     const defaultDates = getDefaultAnnualDates();
     setDateFrom(defaultDates.from);
@@ -631,7 +671,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
       isFirstMount.current = false;
       syncAnnualUrlAndStorage({
         search, zoneFilter, classFilter, contractTypeFilter, unitTypeFilter,
-        techFilter, departmentFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir
+        techFilter, departmentFilter, installationYearFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir
       });
       return;
     }
@@ -639,12 +679,12 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     const timer = setTimeout(() => {
       syncAnnualUrlAndStorage({
         search, zoneFilter, classFilter, contractTypeFilter, unitTypeFilter,
-        techFilter, departmentFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir
+        techFilter, departmentFilter, installationYearFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir
       });
     }, 200);
 
     return () => clearTimeout(timer);
-  }, [search, zoneFilter, classFilter, contractTypeFilter, unitTypeFilter, techFilter, departmentFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir]);
+  }, [search, zoneFilter, classFilter, contractTypeFilter, unitTypeFilter, techFilter, departmentFilter, installationYearFilter, expiryFilter, dateFrom, dateTo, sortKey, sortDir]);
 
   // Fetch data
   const fetchData = async () => {
@@ -658,6 +698,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
       if (unitTypeFilter !== 'all') params.unitType = unitTypeFilter;
       if (techFilter.length > 0) params.engineer = techFilter.join(',');
       if (departmentFilter !== 'all') params.department = departmentFilter;
+      if (installationYearFilter !== 'all') params.installationYear = installationYearFilter;
       if (dateFrom) params.dateFrom = dateFrom;
       if (dateTo) params.dateTo = dateTo;
 
@@ -683,7 +724,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     }, search ? 300 : 0);
 
     return () => clearTimeout(timer);
-  }, [zoneFilter, classFilter, contractTypeFilter, unitTypeFilter, techFilter, departmentFilter, expiryFilter, dateFrom, dateTo, search]);
+  }, [zoneFilter, classFilter, contractTypeFilter, unitTypeFilter, techFilter, departmentFilter, installationYearFilter, expiryFilter, dateFrom, dateTo, search]);
 
   // Sorted Customer Groups
   const sortedCustomerGroups = useMemo(() => {
@@ -754,6 +795,29 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     };
   }, [customers]);
 
+  // Flat list of all machines across customers for pivot calculation
+  const allFlattenedMachines = useMemo(() => {
+    return customers.flatMap(c => c.machines || []);
+  }, [customers]);
+
+  // Drill-down handler from pivot table to detailed records
+  const handlePivotDrillDown = (filters: {
+    engineer?: string;
+    zone?: string;
+    contractType?: string;
+    customerClass?: string;
+    unitType?: string;
+  }) => {
+    if (filters.engineer) setTechFilter([filters.engineer]);
+    if (filters.zone) setZoneFilter(filters.zone);
+    if (filters.contractType) setContractTypeFilter(filters.contractType);
+    if (filters.customerClass) setClassFilter(filters.customerClass);
+    if (filters.unitType) setUnitTypeFilter(filters.unitType);
+    setReportView('detailed');
+    const label = filters.engineer || filters.zone || filters.customerClass || filters.unitType || 'selected group';
+    toast.info(`Switched to Detailed View for ${label}`);
+  };
+
   // Dynamic filter options
   const uniqueEngineers = useMemo(() => {
     const engs = new Set<string>(allEngineers);
@@ -791,6 +855,36 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     return Array.from(deps).sort();
   }, [allDepartments, customers]);
 
+  // Computed active year preset (Contract Expiry Year / FY)
+  const currentYearPresetValue = useMemo(() => {
+    if (!dateFrom && !dateTo) return 'all';
+    if (dateFrom === '2027-01-01' && dateTo === '2027-12-31') return '2027';
+    if (dateFrom === '2026-01-01' && dateTo === '2026-12-31') return '2026';
+    if (dateFrom === '2025-01-01' && dateTo === '2025-12-31') return '2025';
+    if (dateFrom === '2024-01-01' && dateTo === '2024-12-31') return '2024';
+    if (dateFrom === '2023-01-01' && dateTo === '2023-12-31') return '2023';
+    if (dateFrom === '2022-01-01' && dateTo === '2022-12-31') return '2022';
+    if (dateFrom === '2026-04-01' && dateTo === '2027-03-31') return 'fy26_27';
+    if (dateFrom === '2025-04-01' && dateTo === '2026-03-31') return 'fy25_26';
+    if (dateFrom === '2024-04-01' && dateTo === '2025-03-31') return 'fy24_25';
+    if (dateFrom === '2023-04-01' && dateTo === '2024-03-31') return 'fy23_24';
+    return 'custom';
+  }, [dateFrom, dateTo]);
+
+  // Unique machine installation years
+  const uniqueInstallYears = useMemo(() => {
+    const yrs = new Set<string>();
+    customers.forEach(c => {
+      (c.machines || []).forEach(m => {
+        if (m.installationYear) {
+          const match = String(m.installationYear).match(/\b(19\d{2}|20\d{2})\b/);
+          if (match) yrs.add(match[1]);
+        }
+      });
+    });
+    return Array.from(yrs).sort().reverse();
+  }, [customers]);
+
   const handleSort = (key: SortKey) => {
     if (sortKey === key) {
       setSortDir(d => d === 'asc' ? 'desc' : 'asc');
@@ -821,6 +915,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
     unitTypeFilter !== 'all',
     techFilter.length > 0,
     departmentFilter !== 'all',
+    installationYearFilter !== 'all',
     expiryFilter !== 'all',
     !!search,
     !!dateFrom || !!dateTo,
@@ -837,6 +932,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
         unitType: unitTypeFilter,
         engineer: techFilter.length > 0 ? techFilter.join(', ') : 'All',
         department: departmentFilter,
+        installationYear: installationYearFilter !== 'all' ? installationYearFilter : undefined,
         dateFrom,
         dateTo,
         expiryBucket: expiryFilter,
@@ -844,7 +940,7 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
       };
 
       await generateAnnualContractReportExcel(customers, stats, filters);
-      toast.success('Annual Contract Excel Report exported successfully!');
+      toast.success('Annual Contract Excel Report (with Pivot Tables) exported successfully!');
     } catch (err: any) {
       console.error('Export failed:', err);
       toast.error('Failed to export Excel report');
@@ -887,61 +983,131 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
 
         {/* Card Content — Filters */}
         <div className="px-6 py-5 space-y-4">
-          {/* Date Range Row */}
+          {/* Date Range & Direct Year Row */}
           <div className="space-y-2">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="text-xs font-semibold text-slate-600 flex items-center gap-1.5">
                 <Calendar className="w-3.5 h-3.5 text-[#6F8A9D]" />
-                Contract Expiry Date Range
+                Contract Expiry Year / Date Range
               </label>
               <div className="flex items-center gap-1 flex-wrap">
-                <span className="text-[10px] text-slate-400 mr-1">Quick ranges:</span>
+                <span className="text-[10px] text-slate-400 mr-1">Direct Years:</span>
                 <button
                   type="button"
-                  onClick={() => applyDatePreset('1_month')}
-                  className="px-2 py-0.5 rounded text-[10px] font-semibold bg-[#6F8A9D]/15 text-[#546A7A] hover:bg-[#6F8A9D]/25 transition-colors"
+                  onClick={() => applyDatePreset('all')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === 'all'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
                 >
-                  1 Month
+                  All Time
                 </button>
                 <button
                   type="button"
-                  onClick={() => applyDatePreset('today')}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors"
+                  onClick={() => applyDatePreset('2026')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === '2026'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
                 >
-                  Today
+                  2026
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('2027')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === '2027'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
+                >
+                  2027
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('2025')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === '2025'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
+                >
+                  2025
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('2024')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === '2024'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
+                >
+                  2024
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('fy25_26')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === 'fy25_26'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
+                >
+                  FY 25-26
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDatePreset('fy26_27')}
+                  className={`px-2 py-0.5 rounded text-[10px] font-semibold transition-colors cursor-pointer ${currentYearPresetValue === 'fy26_27'
+                    ? 'bg-[#546A7A] text-white font-bold shadow-xs'
+                    : 'bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600'
+                    }`}
+                >
+                  FY 26-27
                 </button>
                 <button
                   type="button"
                   onClick={() => applyDatePreset('this_month')}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors"
+                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors cursor-pointer"
                 >
                   This Month
                 </button>
                 <button
                   type="button"
-                  onClick={() => applyDatePreset('next_month')}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors"
-                >
-                  Next Month
-                </button>
-                <button
-                  type="button"
                   onClick={() => applyDatePreset('this_quarter')}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors"
+                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-[#6F8A9D]/15 hover:text-[#546A7A] text-slate-600 transition-colors cursor-pointer"
                 >
                   This Quarter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDatePreset('all')}
-                  className="px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 hover:bg-slate-200 text-slate-500 transition-colors"
-                >
-                  All Time
                 </button>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              {/* Direct Year Dropdown */}
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase text-slate-400 pointer-events-none">Year:</span>
+                <select
+                  value={currentYearPresetValue}
+                  onChange={(e) => applyDatePreset(e.target.value)}
+                  className="w-full pl-14 pr-3 py-2 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#82A094]/30 font-bold text-slate-800 cursor-pointer"
+                >
+                  <option value="all">All Time (No Expiry Filter)</option>
+                  <optgroup label="Calendar Years">
+                    <option value="2027">Year 2027 (Jan - Dec 2027)</option>
+                    <option value="2026">Year 2026 (Jan - Dec 2026)</option>
+                    <option value="2025">Year 2025 (Jan - Dec 2025)</option>
+                    <option value="2024">Year 2024 (Jan - Dec 2024)</option>
+                    <option value="2023">Year 2023 (Jan - Dec 2023)</option>
+                    <option value="2022">Year 2022 (Jan - Dec 2022)</option>
+                  </optgroup>
+                  <optgroup label="Financial Years (Apr - Mar)">
+                    <option value="fy26_27">FY 2026-27 (Apr 2026 - Mar 2027)</option>
+                    <option value="fy25_26">FY 2025-26 (Apr 2025 - Mar 2026)</option>
+                    <option value="fy24_25">FY 2024-25 (Apr 2024 - Mar 2025)</option>
+                    <option value="fy23_24">FY 2023-24 (Apr 2023 - Mar 2024)</option>
+                  </optgroup>
+                  <option value="custom">Custom Date Range...</option>
+                </select>
+              </div>
+
+              {/* From Date */}
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase text-slate-400 pointer-events-none">From:</span>
                 <input
@@ -951,6 +1117,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                   className="w-full pl-14 pr-3 py-2 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-[#82A094]/30 font-medium text-slate-700"
                 />
               </div>
+
+              {/* To Date */}
               <div className="relative">
                 <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold uppercase text-slate-400 pointer-events-none">To:</span>
                 <input
@@ -1073,13 +1241,12 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
               <button
                 type="button"
                 onClick={() => setTechDropdownOpen(prev => !prev)}
-                className={`w-full px-3 py-2 rounded-lg border text-sm bg-white flex items-center justify-between gap-2 text-left transition-all ${
-                  techDropdownOpen
-                    ? 'border-[#82A094] ring-2 ring-[#82A094]/30 shadow-sm'
-                    : techFilter.length > 0
-                      ? 'border-[#546A7A] bg-slate-50/50'
-                      : 'border-slate-200 hover:border-slate-300'
-                }`}
+                className={`w-full px-3 py-2 rounded-lg border text-sm bg-white flex items-center justify-between gap-2 text-left transition-all ${techDropdownOpen
+                  ? 'border-[#82A094] ring-2 ring-[#82A094]/30 shadow-sm'
+                  : techFilter.length > 0
+                    ? 'border-[#546A7A] bg-slate-50/50'
+                    : 'border-slate-200 hover:border-slate-300'
+                  }`}
               >
                 <div className="flex items-center gap-1.5 min-w-0 flex-1">
                   <User className={`w-3.5 h-3.5 flex-shrink-0 ${techFilter.length > 0 ? 'text-[#546A7A]' : 'text-slate-400'}`} />
@@ -1192,15 +1359,14 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                                 prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]
                               );
                             }}
-                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer text-xs transition-colors select-none ${
-                              isChecked ? 'bg-[#546A7A]/10 font-bold text-[#546A7A]' : 'hover:bg-slate-50 text-slate-700'
-                            }`}
+                            className={`flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer text-xs transition-colors select-none ${isChecked ? 'bg-[#546A7A]/10 font-bold text-[#546A7A]' : 'hover:bg-slate-50 text-slate-700'
+                              }`}
                           >
                             <div className="flex items-center gap-2 min-w-0 flex-1">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
-                                onChange={() => {}}
+                                onChange={() => { }}
                                 className="w-3.5 h-3.5 rounded border-slate-300 text-[#546A7A] focus:ring-[#82A094]/30 pointer-events-none"
                               />
                               <span className="truncate" title={t}>
@@ -1247,6 +1413,21 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
               >
                 <option value="all">All Departments</option>
                 {uniqueDepartments.map(dep => <option key={dep} value={dep}>{dep}</option>)}
+              </select>
+            </div>
+
+            {/* Machine Installation Year */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-slate-600">Installation Year</label>
+              <select
+                value={installationYearFilter}
+                onChange={(e) => setInstallationYearFilter(e.target.value)}
+                className="w-full px-3 py-2 rounded-lg border border-slate-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#82A094]/30 font-medium"
+              >
+                <option value="all">All Installation Years</option>
+                {uniqueInstallYears.map(yr => (
+                  <option key={yr} value={yr}>Installed in {yr}</option>
+                ))}
               </select>
             </div>
 
@@ -1469,12 +1650,54 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
             </div>
           </div>
 
-          {/* ═══ MAIN TABLE — CUSTOMER BAND + MACHINE ROWS (Matches Annual Contracts Page) ═══ */}
+          {/* ═══ VIEW SWITCHER (Detailed Records vs Pivot Summary) ═══ */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-2xl p-2.5 shadow-sm">
+            <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => setReportView('detailed')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${reportView === 'detailed'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <Layers className="w-4 h-4 text-[#546A7A]" />
+                <span>Detailed Records View</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setReportView('pivot')}
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${reportView === 'pivot'
+                  ? 'bg-white text-slate-900 shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+                  }`}
+              >
+                <FileSpreadsheet className="w-4 h-4 text-emerald-600" />
+                <span>Pivot Summary Table</span>
+                <span className="px-1.5 py-0.2 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full">
+                  Excel Style
+                </span>
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-medium px-2">
+              <span>Current Data: <strong className="text-slate-800">{allFlattenedMachines.length}</strong> machines across <strong className="text-slate-800">{customers.length}</strong> customers</span>
+            </div>
+          </div>
+
+          {/* ═══ MAIN CONTENT — PIVOT TABLE OR DETAILED CUSTOMER BAND TABLE ═══ */}
           {loading ? (
             <div className="bg-white rounded-xl border border-slate-200 p-16 text-center shadow-sm">
               <div className="w-10 h-10 border-4 border-[#82A094] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
               <p className="text-slate-500 text-sm font-semibold">Loading annual contract analytics...</p>
             </div>
+          ) : reportView === 'pivot' ? (
+            <ContractPivotTable
+              machines={allFlattenedMachines}
+              onDrillDown={handlePivotDrillDown}
+              filterSummaryText={zoneFilter !== 'all' ? `Zone: ${zoneFilter}` : undefined}
+            />
           ) : sortedCustomerGroups.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-16 text-center shadow-sm space-y-3">
               <Layers className="w-12 h-12 text-slate-300 mx-auto" />
@@ -1528,8 +1751,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                     type="button"
                     onClick={() => setExpiryFilter('all')}
                     className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all ${expiryFilter === 'all'
-                        ? 'bg-[#546A7A] text-white shadow-sm'
-                        : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                      ? 'bg-[#546A7A] text-white shadow-sm'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
                       }`}
                   >
                     All
@@ -1538,8 +1761,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                     type="button"
                     onClick={() => setExpiryFilter(expiryFilter === 'critical' ? 'all' : 'critical')}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${expiryFilter === 'critical'
-                        ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-amber-400'
+                      ? 'bg-amber-500 text-white shadow-sm ring-2 ring-amber-400/50'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-amber-400'
                       }`}
                   >
                     <Clock className="w-3 h-3 text-amber-500" />
@@ -1549,8 +1772,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                     type="button"
                     onClick={() => setExpiryFilter(expiryFilter === 'warning' ? 'all' : 'warning')}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${expiryFilter === 'warning'
-                        ? 'bg-[#CE9F6B] text-white shadow-sm ring-2 ring-[#CE9F6B]/50'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-[#CE9F6B]'
+                      ? 'bg-[#CE9F6B] text-white shadow-sm ring-2 ring-[#CE9F6B]/50'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-[#CE9F6B]'
                       }`}
                   >
                     <span>Warning (31-60d)</span>
@@ -1559,8 +1782,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                     type="button"
                     onClick={() => setExpiryFilter(expiryFilter === 'healthy' ? 'all' : 'healthy')}
                     className={`px-2 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${expiryFilter === 'healthy'
-                        ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/50'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-emerald-400'
+                      ? 'bg-emerald-600 text-white shadow-sm ring-2 ring-emerald-400/50'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-emerald-400'
                       }`}
                   >
                     <CheckCircle className="w-3 h-3 text-emerald-500" />
@@ -1570,8 +1793,8 @@ export default function AnnualContractReports({ role }: AnnualContractReportsPro
                     type="button"
                     onClick={() => setExpiryFilter(expiryFilter === 'expired' ? 'all' : 'expired')}
                     className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-all flex items-center gap-1 ${expiryFilter === 'expired'
-                        ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400/50'
-                        : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-rose-400'
+                      ? 'bg-rose-600 text-white shadow-sm ring-2 ring-rose-400/50'
+                      : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 hover:border-rose-400'
                       }`}
                   >
                     <AlertTriangle className="w-3 h-3 text-rose-500" />
