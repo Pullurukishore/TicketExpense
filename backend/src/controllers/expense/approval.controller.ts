@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import prisma from '../../config/db';
 
-export async function getPendingApprovals(req: AuthenticatedRequest, res: Response) {
+export async function getPendingApprovals(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -56,7 +56,7 @@ export async function getPendingApprovals(req: AuthenticatedRequest, res: Respon
   }
 }
 
-export async function approveExpense(req: AuthenticatedRequest, res: Response) {
+export async function approveExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -91,7 +91,7 @@ export async function approveExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function rejectExpense(req: AuthenticatedRequest, res: Response) {
+export async function rejectExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -126,7 +126,7 @@ export async function rejectExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function approveAdvance(req: AuthenticatedRequest, res: Response) {
+export async function approveAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -159,7 +159,7 @@ export async function approveAdvance(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function rejectAdvance(req: AuthenticatedRequest, res: Response) {
+export async function rejectAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;

@@ -11,19 +11,24 @@
     "moduleResolution": "node",
     "incremental": true,
     "tsBuildInfoFile": "./dist/.tsbuildinfo",
-    "baseUrl": "./src",
+    "baseUrl": ".",
     "paths": {
-      "@/*": ["*"],
-      "@config/*": ["config/*"],
-      "@controllers/*": ["controllers/*"],
-      "@middleware/*": ["middleware/*"],
-      "@routes/*": ["routes/*"]
-    },
-    "typeRoots": [
-      "./node_modules/@types",
-      "./src/@types"
-    ],
-    "types": ["node", "express"]
+      "@/*": [
+        "src/*"
+      ],
+      "@config/*": [
+        "src/config/*"
+      ],
+      "@controllers/*": [
+        "src/controllers/*"
+      ],
+      "@middleware/*": [
+        "src/middleware/*"
+      ],
+      "@routes/*": [
+        "src/routes/*"
+      ]
+    }
   },
   "include": [
     "src/**/*"

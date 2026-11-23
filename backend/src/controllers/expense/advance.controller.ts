@@ -3,7 +3,7 @@ import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import prisma from '../../config/db';
 import { generateAdvanceNumber } from '../../utils/advanceNumber';
 
-export async function getAdvances(req: AuthenticatedRequest, res: Response) {
+export async function getAdvances(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -62,7 +62,7 @@ export async function getAdvances(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function getAdvance(req: AuthenticatedRequest, res: Response) {
+export async function getAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -99,7 +99,7 @@ export async function getAdvance(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function createAdvance(req: AuthenticatedRequest, res: Response) {
+export async function createAdvance(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -137,7 +137,7 @@ export async function createAdvance(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function updateAdvance(req: AuthenticatedRequest, res: Response) {
+export async function updateAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -176,7 +176,7 @@ export async function updateAdvance(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function deleteAdvance(req: AuthenticatedRequest, res: Response) {
+export async function deleteAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -197,7 +197,7 @@ export async function deleteAdvance(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function submitAdvance(req: AuthenticatedRequest, res: Response) {
+export async function submitAdvance(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;

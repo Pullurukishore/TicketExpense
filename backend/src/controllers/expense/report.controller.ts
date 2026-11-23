@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../../middleware/auth.middleware';
 import prisma from '../../config/db';
 
-export async function getDashboardStats(req: AuthenticatedRequest, res: Response) {
+export async function getDashboardStats(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -42,7 +42,7 @@ export async function getDashboardStats(req: AuthenticatedRequest, res: Response
   }
 }
 
-export async function getPoSoCostingReport(req: AuthenticatedRequest, res: Response) {
+export async function getPoSoCostingReport(req: any, res: Response) {
   try {
     const { poSoNo, customer, status } = req.query as any;
 

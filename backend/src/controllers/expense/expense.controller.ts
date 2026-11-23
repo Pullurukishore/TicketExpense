@@ -15,7 +15,7 @@ export const STANDARD_SITE_PURPOSES = [
   'Spare Parts Replacement',
 ];
 
-export async function getExpenses(req: AuthenticatedRequest, res: Response) {
+export async function getExpenses(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -102,7 +102,7 @@ export async function getExpenses(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function getExpense(req: AuthenticatedRequest, res: Response) {
+export async function getExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -144,7 +144,7 @@ export async function getExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function createExpense(req: AuthenticatedRequest, res: Response) {
+export async function createExpense(req: any, res: Response) {
   try {
     const user = req.user;
     if (!user) return res.status(401).json({ error: 'Unauthorized' });
@@ -213,7 +213,7 @@ export async function createExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function updateExpense(req: AuthenticatedRequest, res: Response) {
+export async function updateExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -297,7 +297,7 @@ export async function updateExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function deleteExpense(req: AuthenticatedRequest, res: Response) {
+export async function deleteExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
@@ -323,7 +323,7 @@ export async function deleteExpense(req: AuthenticatedRequest, res: Response) {
   }
 }
 
-export async function submitExpense(req: AuthenticatedRequest, res: Response) {
+export async function submitExpense(req: any, res: Response) {
   try {
     const { id } = req.params;
     const user = req.user;
